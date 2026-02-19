@@ -2,17 +2,34 @@
 
 {% block title %}Board — Job Tracker{% endblock %}
 
+{% block extra_css %}
+.drag-ghost {
+  opacity: 0.35;
+  border: 2px dashed #0d6efd !important;
+  background: #e8f0fe !important;
+}
+.drag-active {
+  transform: rotate(1.5deg);
+  box-shadow: 0 10px 30px rgba(0,0,0,.2) !important;
+  cursor: grabbing !important;
+}
+.kanban-column-body {
+  min-height: 80px; /* drop target always visible even when empty */
+}
+.app-card { cursor: grab; }
+{% endblock %}
+
 {% block content %}
 
 <!-- Page header -->
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <div>
     <h4 class="mb-0 fw-bold">My Applications</h4>
-    <small class="text-muted">{{ total }} application{{ total|pluralize }}</small>
+    <small class="text-muted" id="totalCount">{{ total }} application{{ total|pluralize }}</small>
   </div>
-  <a href="{% url 'application_create' %}" class="btn btn-primary">
+  <button class="btn btn-primary" id="addAppBtn">
     <i class="bi bi-plus-lg me-1"></i>Add Application
-  </a>
+  </button>
 </div>
 
 <!-- Stats row -->
@@ -21,7 +38,7 @@
   <div class="col-6 col-md-3">
     <div class="card stats-card shadow-sm text-center py-2">
       <div class="card-body py-2">
-        <div class="fs-2 fw-bold text-{{ col.color }}">{{ col.items.count }}</div>
+        <div class="fs-2 fw-bold text-{{ col.color }}" data-stat="{{ col.key }}">{{ col.items.count }}</div>
         <div class="text-muted small">{{ col.label }}</div>
       </div>
     </div>
@@ -38,15 +55,15 @@
     <div class="kanban-column-header">
       <i class="bi {{ col.icon }} text-{{ col.color }} fs-5"></i>
       <span class="fw-semibold text-{{ col.color }}">{{ col.label }}</span>
-      <span class="badge bg-{{ col.color }} ms-auto">{{ col.items.count }}</span>
+      <span class="badge bg-{{ col.color }} ms-auto" data-col-badge="{{ col.key }}">{{ col.items.count }}</span>
     </div>
 
     <!-- Cards -->
-    <div class="kanban-column-body">
+    <div class="kanban-column-body" data-status="{{ col.key }}">
       {% for app in col.items %}
-      <div class="app-card" data-href="{% url 'application_detail' app.pk %}">
+      <div class="app-card" data-pk="{{ app.pk }}" data-href="{% url 'application_detail' app.pk %}">
 
-        <!-- Priority badge -->
+        <!-- Priority + date -->
         <div class="d-flex justify-content-between align-items-start mb-1">
           <span class="badge bg-{{ app.get_priority_color }}-subtle text-{{ app.get_priority_color }} border border-{{ app.get_priority_color }}-subtle small">
             {{ app.priority }}
@@ -80,19 +97,21 @@
 
         <!-- Actions -->
         <div class="card-actions">
-          <a href="{% url 'application_edit' app.pk %}" class="btn btn-sm btn-outline-secondary flex-fill"
-             onclick="event.stopPropagation()">
+          <button type="button"
+                  class="btn btn-sm btn-outline-secondary flex-fill edit-btn"
+                  data-pk="{{ app.pk }}">
             <i class="bi bi-pencil me-1"></i>Edit
-          </a>
+          </button>
           {% if app.job_url %}
-          <a href="{{ app.job_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"
-             onclick="event.stopPropagation()">
+          <a href="{{ app.job_url }}" target="_blank" rel="noopener"
+             class="btn btn-sm btn-outline-primary">
             <i class="bi bi-box-arrow-up-right"></i>
           </a>
           {% endif %}
-          <button type="button" class="btn btn-sm btn-outline-danger"
-                  data-bs-toggle="modal" data-bs-target="#deleteModal{{ app.pk }}"
-                  onclick="event.stopPropagation()">
+          <button type="button"
+                  class="btn btn-sm btn-outline-danger"
+                  data-bs-toggle="modal"
+                  data-bs-target="#deleteModal{{ app.pk }}">
             <i class="bi bi-trash"></i>
           </button>
         </div>
@@ -110,9 +129,9 @@
               </p>
               <div class="d-flex gap-2">
                 <button class="btn btn-secondary flex-fill btn-sm" data-bs-dismiss="modal">Cancel</button>
-                <form method="post" action="{% url 'application_delete' app.pk %}">
+                <form method="post" action="{% url 'application_delete' app.pk %}" class="flex-fill">
                   {% csrf_token %}
-                  <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                  <button type="submit" class="btn btn-danger btn-sm w-100">Delete</button>
                 </form>
               </div>
             </div>
@@ -121,7 +140,7 @@
       </div>
 
       {% empty %}
-      <div class="text-center py-4 text-muted">
+      <div class="text-center py-4 text-muted empty-placeholder">
         <i class="bi bi-inbox fs-3 d-block mb-1 opacity-40"></i>
         <small>No applications here</small>
       </div>
@@ -132,14 +151,182 @@
   {% endfor %}
 </div>
 
+<!-- ===================== Application Modal ===================== -->
+<div class="modal fade" id="appModal" tabindex="-1" aria-labelledby="appModalLabel">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="appModalLabel">Application</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-3" id="appModalBody">
+        <!-- Partial form loads here -->
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
+
 {% block extra_js %}
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+
 <script>
-  document.querySelectorAll('.app-card[data-href]').forEach(function (card) {
-    card.addEventListener('click', function () {
-      window.location = card.dataset.href;
-    });
+// ─── Helpers ────────────────────────────────────────────────────────────────
+function getCsrf() {
+  const cookie = document.cookie.split('; ').find(c => c.startsWith('csrftoken='));
+  return cookie ? cookie.split('=')[1] : '';
+}
+
+// ─── Modal setup ────────────────────────────────────────────────────────────
+const appModalEl  = document.getElementById('appModal');
+const appModal    = new bootstrap.Modal(appModalEl);
+const modalLabel  = document.getElementById('appModalLabel');
+const modalBody   = document.getElementById('appModalBody');
+
+function showSpinner() {
+  modalBody.innerHTML =
+    '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>';
+}
+
+async function openFormModal(url, title) {
+  modalLabel.textContent = title;
+  showSpinner();
+  appModal.show();
+  const res  = await fetch(url + '?partial=1');
+  modalBody.innerHTML = await res.text();
+}
+
+// ─── Modal form submit (event delegation — survives re-renders) ──────────────
+appModalEl.addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const form      = e.target;
+  const submitBtn = form.querySelector('#modalSubmitBtn');
+  const origHtml  = submitBtn.innerHTML;
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+  const formData = new FormData(form);
+  formData.set('partial', '1');
+
+  const res = await fetch(form.action, { method: 'POST', body: formData });
+
+  if (res.ok) {
+    // Success: server returned JSON {success: true}
+    window.location.reload();
+  } else {
+    // Validation errors: server returned the partial form HTML with error messages
+    modalBody.innerHTML = await res.text();
+  }
+});
+
+// ─── "Add Application" button ────────────────────────────────────────────────
+document.getElementById('addAppBtn').addEventListener('click', () => {
+  openFormModal('{% url "application_create" %}', 'Add New Application');
+});
+
+// Also intercept the navbar "Add Application" link on this page
+document.querySelectorAll('a[href="{% url "application_create" %}"]').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    openFormModal('{% url "application_create" %}', 'Add New Application');
   });
+});
+
+// ─── "Edit" buttons ──────────────────────────────────────────────────────────
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('.edit-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  const pk = btn.dataset.pk;
+  openFormModal(`/${pk}/edit/`, 'Edit Application');
+});
+
+// ─── Card click → detail page ────────────────────────────────────────────────
+document.addEventListener('click', function (e) {
+  const card = e.target.closest('.app-card');
+  if (!card) return;
+  // Don't navigate if user clicked a button/link/modal inside the card
+  if (e.target.closest('button, a, [data-bs-toggle]')) return;
+  window.location = card.dataset.href;
+});
+
+// ─── Drag-and-drop (SortableJS) ──────────────────────────────────────────────
+function updateCounts() {
+  document.querySelectorAll('.kanban-column').forEach(col => {
+    const colBody  = col.querySelector('.kanban-column-body');
+    const status   = colBody.dataset.status;
+    const count    = colBody.querySelectorAll('.app-card').length;
+
+    // column header badge
+    col.querySelector('[data-col-badge]').textContent = count;
+
+    // stats row number
+    const stat = document.querySelector(`[data-stat="${status}"]`);
+    if (stat) stat.textContent = count;
+
+    // show/hide empty placeholder
+    const placeholder = colBody.querySelector('.empty-placeholder');
+    const hasCards     = count > 0;
+    if (placeholder) {
+      placeholder.style.display = hasCards ? 'none' : '';
+    } else if (!hasCards) {
+      const div = document.createElement('div');
+      div.className = 'text-center py-4 text-muted empty-placeholder';
+      div.innerHTML = '<i class="bi bi-inbox fs-3 d-block mb-1 opacity-40"></i><small>No applications here</small>';
+      colBody.appendChild(div);
+    }
+  });
+
+  // total count in page header
+  const total = document.querySelectorAll('.app-card').length;
+  document.getElementById('totalCount').textContent =
+    total + ' application' + (total !== 1 ? 's' : '');
+}
+
+document.querySelectorAll('.kanban-column-body').forEach(colBody => {
+  Sortable.create(colBody, {
+    group:      'kanban',
+    animation:  150,
+    ghostClass: 'drag-ghost',
+    dragClass:  'drag-active',
+    filter:     'button, a, .modal',   // don't drag when clicking actions
+
+    onEnd(evt) {
+      if (evt.from === evt.to) return;  // reordering within same column — no API call
+
+      const pk        = evt.item.dataset.pk;
+      const newStatus = evt.to.dataset.status;
+
+      // Optimistically update badge counts immediately
+      updateCounts();
+
+      fetch(`/${pk}/update-status/`, {
+        method:  'POST',
+        headers: {
+          'X-CSRFToken':  getCsrf(),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `status=${newStatus}`,
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) {
+          // Revert card to original column on failure
+          const ref = evt.from.children[evt.oldIndex] || null;
+          evt.from.insertBefore(evt.item, ref);
+          updateCounts();
+        }
+      })
+      .catch(() => {
+        evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
+        updateCounts();
+      });
+    },
+  });
+});
 </script>
 {% endblock %}
