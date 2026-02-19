@@ -1,0 +1,136 @@
+{% extends "applications/base.html" %}
+
+{% block title %}{{ page_title }} — Job Tracker{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-7">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'application_list' %}" class="text-decoration-none">Board</a></li>
+        <li class="breadcrumb-item active">{{ page_title }}</li>
+      </ol>
+    </nav>
+
+    <div class="card form-page-card">
+      <div class="card-header bg-white border-bottom py-3 px-4">
+        <h5 class="mb-0 fw-bold">
+          {% if action == 'Create' %}
+          <i class="bi bi-plus-circle-fill text-primary me-2"></i>Add New Application
+          {% else %}
+          <i class="bi bi-pencil-fill text-warning me-2"></i>Edit Application
+          {% endif %}
+        </h5>
+      </div>
+
+      <div class="card-body p-4">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <!-- Row 1: Company & Location -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <i class="bi bi-building me-1 text-muted"></i>Company <span class="text-danger">*</span>
+              </label>
+              {{ form.company }}
+              {% if form.company.errors %}
+                <div class="invalid-feedback d-block">{{ form.company.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <i class="bi bi-geo-alt me-1 text-muted"></i>Location <span class="text-danger">*</span>
+              </label>
+              {{ form.location }}
+              {% if form.location.errors %}
+                <div class="invalid-feedback d-block">{{ form.location.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Row 2: Job Title & Job URL -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <i class="bi bi-briefcase me-1 text-muted"></i>Job Title <span class="text-danger">*</span>
+              </label>
+              {{ form.job_title }}
+              {% if form.job_title.errors %}
+                <div class="invalid-feedback d-block">{{ form.job_title.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <i class="bi bi-link-45deg me-1 text-muted"></i>Job URL
+              </label>
+              {{ form.job_url }}
+              {% if form.job_url.errors %}
+                <div class="invalid-feedback d-block">{{ form.job_url.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Row 3: Status & Priority -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <i class="bi bi-flag me-1 text-muted"></i>Status
+              </label>
+              {{ form.status }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <i class="bi bi-lightning me-1 text-muted"></i>Priority
+              </label>
+              {{ form.priority }}
+            </div>
+          </div>
+
+          <!-- Row 4: Salary & Deadline -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <i class="bi bi-cash-stack me-1 text-muted"></i>Salary Range
+              </label>
+              {{ form.salary_range }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                <i class="bi bi-calendar-event me-1 text-muted"></i>Application Deadline
+              </label>
+              {{ form.deadline }}
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold">
+              <i class="bi bi-sticky me-1 text-muted"></i>Notes
+            </label>
+            {{ form.notes }}
+          </div>
+
+          <!-- Actions -->
+          <div class="d-flex gap-2 justify-content-end">
+            <a href="{% url 'application_list' %}" class="btn btn-outline-secondary px-4">
+              <i class="bi bi-x-lg me-1"></i>Cancel
+            </a>
+            <button type="submit" class="btn btn-primary px-4">
+              {% if action == 'Create' %}
+              <i class="bi bi-plus-lg me-1"></i>Add Application
+              {% else %}
+              <i class="bi bi-check-lg me-1"></i>Save Changes
+              {% endif %}
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

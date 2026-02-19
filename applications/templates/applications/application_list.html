@@ -1,0 +1,145 @@
+{% extends "applications/base.html" %}
+
+{% block title %}Board — Job Tracker{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold">My Applications</h4>
+    <small class="text-muted">{{ total }} application{{ total|pluralize }}</small>
+  </div>
+  <a href="{% url 'application_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>Add Application
+  </a>
+</div>
+
+<!-- Stats row -->
+<div class="row g-3 mb-4">
+  {% for col in kanban_columns %}
+  <div class="col-6 col-md-3">
+    <div class="card stats-card shadow-sm text-center py-2">
+      <div class="card-body py-2">
+        <div class="fs-2 fw-bold text-{{ col.color }}">{{ col.items.count }}</div>
+        <div class="text-muted small">{{ col.label }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Kanban board -->
+<div class="kanban-board">
+  {% for col in kanban_columns %}
+  <div class="kanban-column col-{{ col.color }}">
+
+    <!-- Column header -->
+    <div class="kanban-column-header">
+      <i class="bi {{ col.icon }} text-{{ col.color }} fs-5"></i>
+      <span class="fw-semibold text-{{ col.color }}">{{ col.label }}</span>
+      <span class="badge bg-{{ col.color }} ms-auto">{{ col.items.count }}</span>
+    </div>
+
+    <!-- Cards -->
+    <div class="kanban-column-body">
+      {% for app in col.items %}
+      <div class="app-card" data-href="{% url 'application_detail' app.pk %}">
+
+        <!-- Priority badge -->
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <span class="badge bg-{{ app.get_priority_color }}-subtle text-{{ app.get_priority_color }} border border-{{ app.get_priority_color }}-subtle small">
+            {{ app.priority }}
+          </span>
+          <small class="text-muted">{{ app.applied_at|date:"M d" }}</small>
+        </div>
+
+        <div class="job-title">{{ app.job_title }}</div>
+        <div class="company-name">
+          <i class="bi bi-building me-1"></i>{{ app.company }}
+        </div>
+
+        <div class="meta-row">
+          <i class="bi bi-geo-alt"></i>
+          <span>{{ app.location }}</span>
+        </div>
+
+        {% if app.salary_range %}
+        <div class="meta-row">
+          <i class="bi bi-cash"></i>
+          <span>{{ app.salary_range }}</span>
+        </div>
+        {% endif %}
+
+        {% if app.deadline %}
+        <div class="meta-row">
+          <i class="bi bi-calendar-event"></i>
+          <span>Deadline: {{ app.deadline|date:"M d, Y" }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Actions -->
+        <div class="card-actions">
+          <a href="{% url 'application_edit' app.pk %}" class="btn btn-sm btn-outline-secondary flex-fill"
+             onclick="event.stopPropagation()">
+            <i class="bi bi-pencil me-1"></i>Edit
+          </a>
+          {% if app.job_url %}
+          <a href="{{ app.job_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary"
+             onclick="event.stopPropagation()">
+            <i class="bi bi-box-arrow-up-right"></i>
+          </a>
+          {% endif %}
+          <button type="button" class="btn btn-sm btn-outline-danger"
+                  data-bs-toggle="modal" data-bs-target="#deleteModal{{ app.pk }}"
+                  onclick="event.stopPropagation()">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Inline delete confirm modal -->
+      <div class="modal fade" id="deleteModal{{ app.pk }}" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+          <div class="modal-content border-0 shadow">
+            <div class="modal-body text-center p-4">
+              <i class="bi bi-exclamation-triangle-fill text-warning fs-2 mb-2 d-block"></i>
+              <h6 class="fw-bold mb-1">Delete application?</h6>
+              <p class="text-muted small mb-3">
+                <strong>{{ app.job_title }}</strong> at {{ app.company }}
+              </p>
+              <div class="d-flex gap-2">
+                <button class="btn btn-secondary flex-fill btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" action="{% url 'application_delete' app.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% empty %}
+      <div class="text-center py-4 text-muted">
+        <i class="bi bi-inbox fs-3 d-block mb-1 opacity-40"></i>
+        <small>No applications here</small>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('.app-card[data-href]').forEach(function (card) {
+    card.addEventListener('click', function () {
+      window.location = card.dataset.href;
+    });
+  });
+</script>
+{% endblock %}
